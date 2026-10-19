@@ -29,6 +29,18 @@ The result prints to the screen and lands in `korhoname.md` and `korhoname.json`
 
 `--dump` tries the dump first and falls back to the site search when the dump stays out of reach.
 
+## Trademarks
+
+Korhoname also queries TMview, the trademark search run by the European Union Intellectual Property Office over the EU offices, the French INPI, WIPO, the USPTO and some seventy others, without a key. It keeps the marks whose shared form equals the name's and flags those registered in Nice classes 9 (recordings) and 41 (entertainment); a match there makes the name `TAKEN`. `--no-trademarks` skips this step.
+
+## Method
+
+- The verdict rests on the shared form: diacritics, ligatures and punctuation drop, and so does Discogs's `(2)` suffix. A dispute over a name turns on what the names share: `Ā-î-Ā` is read as `AIA`, `Ā-Ā` as `AA`.
+- Discogs is searched three times per name and per type: the name as written, without diacritics, and without punctuation (`Ā-Ā`, `A-A`, `AA`), since its search engine matches each form differently.
+- The reader proxy is rate-limited: requests are paced, then retried up to eight times with a growing wait. A page that stays unreadable is kept as `unread-….txt` and named in the report; the verdict then says `PART UNREAD` instead of `FREE`.
+- MusicBrainz is searched on names and aliases, with five tries.
+- A free verdict covers these sources only. It is no legal clearance: a lawyer or the offices themselves settle a dispute.
+
 ## GitHub Actions
 
 Fork the repository, then Actions → Korhoname → Run workflow, and type the names, comma-separated. The result shows in the run summary and lands on the branch `result`.

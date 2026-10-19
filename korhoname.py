@@ -107,19 +107,58 @@ class Check:
                                      a.get('disambiguation', '') + ('' if nm == a['name'] else f' as “{nm}”')); break
                 time.sleep(1.2)
 
+    # Trademarks: TMview (EUIPO's portal over the EU offices, INPI, WIPO, USPTO and 70-odd others), no key
+    def trademarks(self, classes=('9', '41')):
+        BUA = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36',
+               'Content-Type': 'application/json', 'Accept': 'application/json'}
+        self.tm = {}
+        for n in self.names:
+            plain = ''.join(c for c in unicodedata.normalize('NFKD', n) if not unicodedata.combining(c))
+            rows, seen = [], set()
+            for q in dict.fromkeys([plain, fold(n)]):
+                for page in range(1, 6):
+                    body = json.dumps({'page': str(page), 'pageSize': '100', 'criteria': 'C', 'basicSearch': q}).encode()
+                    try:
+                        d = retry(lambda: json.load(urllib.request.urlopen(urllib.request.Request(
+                            'https://www.tmdn.org/tmview/api/search/results', data=body, headers=BUA), timeout=90)))
+                    except Exception as e:
+                        self.unread[n].append(f'TMview “{q}”'); break
+                    if page == 1 and d.get('tradeMarks'):
+                        open(f'tmview-sample-{fold(q) or "x"}.json', 'w').write(json.dumps(d['tradeMarks'][:3], ensure_ascii=False, indent=1))
+                    for r in d.get('tradeMarks') or []:
+                        mark = r.get('tmName') or r.get('markName') or r.get('wordMarkSpecification') or r.get('name') or ''
+                        if isinstance(mark, list): mark = ' '.join(map(str, mark))
+                        key = (r.get('office'), r.get('applicationNumber') or r.get('ST13') or mark)
+                        if key in seen: continue
+                        seen.add(key)
+                        cls = [str(c) for c in (r.get('niceClasses') or [])]
+                        if fold(mark) == fold(n):
+                            rows.append({'mark': mark, 'office': r.get('office'), 'classes': cls, 'status': r.get('tradeMarkStatus') or r.get('status'),
+                                         'applicant': r.get('applicantNames'), 'filed': (r.get('applicationDate') or '')[:10],
+                                         'music': bool(set(cls) & set(classes)), 'id': r.get('ST13') or r.get('applicationNumber')})
+                    if page >= (d.get('totalPages') or 1): break
+                    time.sleep(1.5)
+            self.tm[n] = rows
+
     def report(self):
         L = [f'# Korhoname — {time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())}', '', f'Discogs route: {self.route}', '']
         out = {}
         for n in self.names:
             h = self.hits[n]; ex = [x for x in h if x['exact']]
+            tm = getattr(self, 'tm', {}).get(n, [])
             # a conflict over a name turns on what the names share: the form without diacritics decides
-            verdict = 'TAKEN' if h else ('FREE' if not self.unread[n] else 'NO MATCH FOUND, BUT PART UNREAD')
+            tm_music = [x for x in tm if x['music']]
+            verdict = 'TAKEN' if h or tm_music else ('FREE' if not self.unread[n] else 'NO MATCH FOUND, BUT PART UNREAD')
             L.append(f'## {n} — {verdict}: {len(ex)} with the exact spelling, {len(h) - len(ex)} more once diacritics, ligatures and punctuation drop')
             if self.unread[n]: L.append(f'- unread: {", ".join(self.unread[n])}')
             for x in sorted(h, key=lambda x: (not x['exact'], x['source'])):
                 L.append(f"- {'EXACT ' if x['exact'] else ''}{x['source']} {x['type']}: {x['name']} {('(' + x['note'].strip() + ')') if x['note'].strip() else ''} {x['url']}")
+            if hasattr(self, 'tm'):
+                L.append(f'- trademarks (TMview) on the shared form: {len(tm)}, of which {len(tm_music)} in classes 9 or 41 (recordings, entertainment)')
+                for x in sorted(tm, key=lambda x: not x['music']):
+                    L.append(f"  - {'MUSIC ' if x['music'] else ''}{x['mark']} — {x['office']} — classes {', '.join(x['classes'])} — {x['status']} — {x['applicant']} — {x['filed']} — {x['id']}")
             L.append('')
-            out[n] = {'verdict': verdict, 'hits': h, 'unread': self.unread[n]}
+            out[n] = {'verdict': verdict, 'hits': h, 'trademarks': tm, 'unread': self.unread[n]}
         open('korhoname.md', 'w').write('\n'.join(L)); json.dump(out, open('korhoname.json', 'w'), ensure_ascii=False, indent=1)
         return '\n'.join(L)
 
@@ -133,4 +172,5 @@ if __name__ == '__main__':
         except Exception as e: print('Discogs dump out of reach:', e, file=sys.stderr)
     if not c.route: c.discogs_search()
     c.musicbrainz()
+    if '--no-trademarks' not in sys.argv: c.trademarks()
     print(c.report())
