@@ -21,6 +21,12 @@ def fold(s):
     s = ''.join(c for c in s if not unicodedata.combining(c))
     return re.sub(r'[\W_]+', '', s)
 
+def same(a, b):
+    """Shared form; a name made only of signs (no letter, no digit) is compared sign for sign, spaces aside."""
+    fa, fb = fold(a), fold(b)
+    if fa or fb: return fa == fb
+    return re.sub(r'\s+', '', exact(a)) == re.sub(r'\s+', '', exact(b)) and bool(exact(a))
+
 def exact(s):
     """Lower case, diacritics kept, Discogs's '(2)' suffix dropped."""
     return unicodedata.normalize('NFC', re.sub(r'\s*\(\d+\)$', '', s or '')).casefold().strip()
@@ -91,7 +97,7 @@ class Check:
                     open(f'unread-{fold(q) or "x"}-{kind}.txt', 'w').write(body); continue
                 for name, url in re.findall(r'\[([^\[\]]+?)\]\((https://www\.discogs\.com/(?:artist|label)/[^)\s]+)', body):
                     name = re.sub(r'^Cover art missing: ', '', name)
-                    if fold(name) == fold(n): self.add(n, 'Discogs', kind, name, url)
+                    if same(name, n): self.add(n, 'Discogs', kind, name, url)
         self.route = self.route or 'Discogs site search (first page of results, best matches first)'
 
     def musicbrainz(self):
@@ -102,7 +108,7 @@ class Check:
                 except Exception: self.unread[n].append(f'MusicBrainz {ent} search'); continue
                 for a in d.get(ent + 's', []):
                     for nm in [a.get('name', '')] + [x.get('name', '') for x in a.get('aliases') or []]:
-                        if fold(nm) == fold(n):
+                        if same(nm, n):
                             self.add(n, 'MusicBrainz', ent, a['name'], f"https://musicbrainz.org/{ent}/{a['id']}",
                                      a.get('disambiguation', '') + ('' if nm == a['name'] else f' as “{nm}”')); break
                 time.sleep(1.2)
@@ -132,7 +138,7 @@ class Check:
                         if key in seen: continue
                         seen.add(key)
                         cls = [str(c) for c in (r.get('niceClass') or r.get('niceClasses') or [])]
-                        if fold(mark) == fold(n):
+                        if same(mark, n):
                             status = r.get('tradeMarkStatus') or r.get('status') or ''
                             live = not re.search(r'(?i)ended|expired|withdrawn|refused|cancel|lapsed|surrender', status)
                             rows.append({'mark': mark, 'office': r.get('tmOffice') or r.get('office'), 'classes': cls, 'protection': r.get('tProtection') or [], 'status': status, 'live': live,
@@ -169,7 +175,7 @@ class Check:
                     for r in res:
                         f = {x.get('name'): x.get('value') for x in r.get('fields', [])} if r.get('fields') else r
                         mark = f.get('Mark') or ''
-                        if fold(mark) != fold(n) or f.get('ukey') in seen: continue
+                        if not same(mark, n) or f.get('ukey') in seen: continue
                         seen.add(f.get('ukey'))
                         cls = [str(c) for c in (f.get('ClassNumber') if isinstance(f.get('ClassNumber'), list) else [f.get('ClassNumber')]) if c]
                         expiry = str(f.get('ExpiryDate') or '')
