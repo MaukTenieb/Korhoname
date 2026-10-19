@@ -2,8 +2,8 @@
 """Korhoname: is a name free on Discogs and MusicBrainz?
 
 For each candidate name, Korhoname looks up artists and labels on Discogs and MusicBrainz and separates two cases:
-the exact spelling (accents, macrons and ligatures kept: Ā is not A) and the matches without diacritics (what a search
-engine confuses). Discogs: the monthly data dump when reachable (every artist name, name variation and alias), else
+the exact spelling (accents, macrons and ligatures kept) and the matches once diacritics, ligatures and punctuation drop.
+The verdict rests on the second: a conflict over a name turns on what the names share, so Ā-î-Ā counts as AIA. Discogs: the monthly data dump when reachable (every artist name, name variation and alias), else
 the site search read through the r.jina.ai reader. MusicBrainz: its web service (artist, label, aliases).
 
     python3 korhoname.py "Marumero" "Egyensúly" "Ā"
@@ -109,9 +109,9 @@ class Check:
         out = {}
         for n in self.names:
             h = self.hits[n]; ex = [x for x in h if x['exact']]
-            verdict = 'TAKEN' if ex else ('FREE' if not self.unread[n] else 'NO TAKEN MATCH FOUND, BUT PART UNREAD')
-            folded = len(h) - len(ex)
-            L.append(f'## {n} — exact spelling: {verdict}; {folded} more without diacritics')
+            # a conflict over a name turns on what the names share: the form without diacritics decides
+            verdict = 'TAKEN' if h else ('FREE' if not self.unread[n] else 'NO MATCH FOUND, BUT PART UNREAD')
+            L.append(f'## {n} — {verdict}: {len(ex)} with the exact spelling, {len(h) - len(ex)} more once diacritics, ligatures and punctuation drop')
             if self.unread[n]: L.append(f'- unread: {", ".join(self.unread[n])}')
             for x in sorted(h, key=lambda x: (not x['exact'], x['source'])):
                 L.append(f"- {'EXACT ' if x['exact'] else ''}{x['source']} {x['type']}: {x['name']} {('(' + x['note'].strip() + ')') if x['note'].strip() else ''} {x['url']}")
