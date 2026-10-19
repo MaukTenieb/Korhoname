@@ -1,0 +1,21 @@
+# Korhoname from GitHub Actions: Actions → Korhoname → Run workflow, type the names; the result lands on the branch "result".
+name: Korhoname
+on:
+  workflow_dispatch:
+    inputs:
+      names: {description: 'Names, comma-separated', required: true}
+permissions:
+  contents: write
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p /tmp/k && cd /tmp/k
+          python3 "$GITHUB_WORKSPACE/korhoname.py" "$NAMES" | tee -a "$GITHUB_STEP_SUMMARY"
+          git init -q -b result && git config user.name korhoname && git config user.email actions@users.noreply.github.com
+          git add . && git commit -qm "Korhoname $(date -u +%FT%H%M)"
+          git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:result
+        env: {NAMES: '${{ inputs.names }}'}

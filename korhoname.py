@@ -1,0 +1,133 @@
+#!/usr/bin/env python3
+"""Korhoname: is a name free on Discogs and MusicBrainz?
+
+For each candidate name, Korhoname looks up artists and labels on Discogs and MusicBrainz and separates two cases:
+the exact spelling (accents, macrons and ligatures kept: Ā is not A) and the matches without diacritics (what a search
+engine confuses). Discogs: the monthly data dump when reachable (every artist name, name variation and alias), else
+the site search read through the r.jina.ai reader. MusicBrainz: its web service (artist, label, aliases).
+
+    python3 korhoname.py "Marumero" "Egyensúly" "Ā"
+    python3 korhoname.py --dump "Gy"        # read the whole Discogs dump (~500 MB, home connections)
+
+Output: korhoname.md (the reading copy) and korhoname.json. Standard library only. MIT licence © 2026 Mauk Tenieb."""
+import sys, re, json, gzip, time, unicodedata, urllib.request, urllib.parse, xml.etree.ElementTree as ET
+
+UA = {'User-Agent': 'Mozilla/5.0 (compatible; Korhoname/1.0; +https://github.com/MaukTenieb/korhoname)'}
+
+def fold(s):
+    """Lower case, no diacritics, ligatures opened, Discogs's '(2)' suffix dropped, punctuation and spaces dropped."""
+    s = re.sub(r'\s*\(\d+\)$', '', s or '')
+    s = unicodedata.normalize('NFKD', s.casefold().replace('æ', 'ae').replace('œ', 'oe'))
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+    return re.sub(r'[\W_]+', '', s)
+
+def exact(s):
+    """Lower case, diacritics kept, Discogs's '(2)' suffix dropped."""
+    return unicodedata.normalize('NFC', re.sub(r'\s*\(\d+\)$', '', s or '')).casefold().strip()
+
+def get(url, timeout=90, headers=None):
+    return urllib.request.urlopen(urllib.request.Request(url, headers={**UA, **(headers or {})}), timeout=timeout)
+
+def retry(fn, tries=5, base=6):
+    for k in range(tries):
+        try: return fn()
+        except Exception as e:
+            err = e; time.sleep(base + base * k)
+    raise err
+
+class Check:
+    def __init__(self, names):
+        self.names = names
+        self.hits = {n: [] for n in names}
+        self.unread = {n: [] for n in names}
+        self.route = ''
+
+    def add(self, n, source, kind, name, url, note=''):
+        key = (source, url)
+        if any((h['source'], h['url']) == key for h in self.hits[n]): return
+        self.hits[n].append({'source': source, 'type': kind, 'name': name, 'url': url, 'note': note,
+                             'exact': exact(name) == exact(n)})
+
+    # Discogs, whole database: the monthly dump listed on data.discogs.com
+    def discogs_dump(self):
+        D = 'https://data.discogs.com/'
+        files = []
+        for y in (time.gmtime().tm_year, time.gmtime().tm_year - 1):
+            page = get(f"{D}?prefix={urllib.parse.quote(f'data/{y}/', safe='')}").read().decode()
+            files = re.findall(r'\?download=(data%2F\d+%2Fdiscogs_(\d{8})_(artists|labels)\.xml\.gz)', page)
+            if files: break
+        latest = max(f[1] for f in files)
+        want = {}
+        for n in self.names: want.setdefault(fold(n), []).append(n)
+        for key, date, kind in sorted(f for f in files if f[1] == latest):
+            tag = kind[:-1]
+            with gzip.open(get(f'{D}?download={key}', 600)) as f:
+                for _, el in ET.iterparse(f):
+                    if el.tag != tag: continue
+                    names = [el.findtext('name') or ''] + [v.text or '' for v in el.findall('namevariations/name')]
+                    if tag == 'artist': names += [v.text or '' for v in el.findall('aliases/name')]
+                    for nm in names:
+                        for n in want.get(fold(nm), []):
+                            self.add(n, 'Discogs', tag, el.findtext('name'), f"https://www.discogs.com/{tag}/{el.findtext('id')}",
+                                     '' if nm == el.findtext('name') else f'as “{nm}”')
+                    el.clear()
+        self.route = f'Discogs data dump {latest}'
+
+    # Discogs, site search read through a reader proxy
+    def discogs_search(self):
+        for n in self.names:
+            for kind in ('artist', 'label'):
+                body = ''
+                for k in range(4):
+                    u = f"https://r.jina.ai/https://www.discogs.com/search?q={urllib.parse.quote(n)}&type={kind}"
+                    try: body = get(u, 90, {'X-No-Cache': 'true'}).read().decode()
+                    except Exception: body = ''
+                    if re.search(r'Search results for|No results found|\d+ - \d+ of \d+', body): break
+                    time.sleep(8 + 6 * k)
+                else:
+                    self.unread[n].append(f'Discogs {kind} search'); continue
+                for name, url in re.findall(r'\[([^\[\]]+?)\]\((https://www\.discogs\.com/(?:artist|label)/[^)\s]+)', body):
+                    name = re.sub(r'^Cover art missing: ', '', name)
+                    if fold(name) == fold(n): self.add(n, 'Discogs', kind, name, url)
+        self.route = self.route or 'Discogs site search (first page of results, best matches first)'
+
+    def musicbrainz(self):
+        for n in self.names:
+            for ent in ('artist', 'label'):
+                q = urllib.parse.quote(f'{ent}:"{n}" OR alias:"{n}"')
+                try: d = retry(lambda: json.load(get(f'https://musicbrainz.org/ws/2/{ent}?query={q}&fmt=json&limit=100')))
+                except Exception: self.unread[n].append(f'MusicBrainz {ent} search'); continue
+                for a in d.get(ent + 's', []):
+                    for nm in [a.get('name', '')] + [x.get('name', '') for x in a.get('aliases') or []]:
+                        if fold(nm) == fold(n):
+                            self.add(n, 'MusicBrainz', ent, a['name'], f"https://musicbrainz.org/{ent}/{a['id']}",
+                                     a.get('disambiguation', '') + ('' if nm == a['name'] else f' as “{nm}”')); break
+                time.sleep(1.2)
+
+    def report(self):
+        L = [f'# Korhoname — {time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())}', '', f'Discogs route: {self.route}', '']
+        out = {}
+        for n in self.names:
+            h = self.hits[n]; ex = [x for x in h if x['exact']]
+            verdict = 'TAKEN' if ex else ('FREE' if not self.unread[n] else 'NO TAKEN MATCH FOUND, BUT PART UNREAD')
+            folded = len(h) - len(ex)
+            L.append(f'## {n} — exact spelling: {verdict}; {folded} more without diacritics')
+            if self.unread[n]: L.append(f'- unread: {", ".join(self.unread[n])}')
+            for x in sorted(h, key=lambda x: (not x['exact'], x['source'])):
+                L.append(f"- {'EXACT ' if x['exact'] else ''}{x['source']} {x['type']}: {x['name']} {('(' + x['note'].strip() + ')') if x['note'].strip() else ''} {x['url']}")
+            L.append('')
+            out[n] = {'verdict': verdict, 'hits': h, 'unread': self.unread[n]}
+        open('korhoname.md', 'w').write('\n'.join(L)); json.dump(out, open('korhoname.json', 'w'), ensure_ascii=False, indent=1)
+        return '\n'.join(L)
+
+if __name__ == '__main__':
+    args = [a for a in sys.argv[1:] if not a.startswith('--')]
+    names = [x.strip() for a in args for x in a.split(',') if x.strip()]
+    if not names: sys.exit(__doc__)
+    c = Check(names)
+    if '--dump' in sys.argv:
+        try: c.discogs_dump()
+        except Exception as e: print('Discogs dump out of reach:', e, file=sys.stderr)
+    if not c.route: c.discogs_search()
+    c.musicbrainz()
+    print(c.report())
