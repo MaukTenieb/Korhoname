@@ -79,15 +79,16 @@ class Check:
             plain = ''.join(c for c in unicodedata.normalize('NFKD', n) if not unicodedata.combining(c))
             queries = list(dict.fromkeys([n, plain, re.sub(r'[\W_]+', '', plain)]))   # the name, without signs, without punctuation
             for kind, q in [(k, q) for k in ('artist', 'label') for q in queries]:
-                body = ''
-                for k in range(4):
+                body, ok = '', False
+                for k in range(8):                                     # the reader is rate-limited: pace, then back off
+                    time.sleep(3 if k == 0 else 10 * k)
                     u = f"https://r.jina.ai/https://www.discogs.com/search?q={urllib.parse.quote(q)}&type={kind}"
-                    try: body = get(u, 90, {'X-No-Cache': 'true'}).read().decode()
-                    except Exception: body = ''
-                    if re.search(r'Search results for|No results found|\d+ - \d+ of \d+', body): break
-                    time.sleep(8 + 6 * k)
-                else:
-                    self.unread[n].append(f'Discogs {kind} search “{q}”'); continue
+                    try: body = get(u, 120, {'X-No-Cache': 'true'}).read().decode()
+                    except Exception as e: body = f'ERROR {e}'
+                    if re.search(r'Search results for|No results|did not match|\d+ - \d+ of \d+', body): ok = True; break
+                if not ok:
+                    self.unread[n].append(f'Discogs {kind} search “{q}”')
+                    open(f'unread-{fold(q) or "x"}-{kind}.txt', 'w').write(body); continue
                 for name, url in re.findall(r'\[([^\[\]]+?)\]\((https://www\.discogs\.com/(?:artist|label)/[^)\s]+)', body):
                     name = re.sub(r'^Cover art missing: ', '', name)
                     if fold(name) == fold(n): self.add(n, 'Discogs', kind, name, url)
