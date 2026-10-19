@@ -135,13 +135,51 @@ class Check:
                         if fold(mark) == fold(n):
                             status = r.get('tradeMarkStatus') or r.get('status') or ''
                             live = not re.search(r'(?i)ended|expired|withdrawn|refused|cancel|lapsed|surrender', status)
-                            rows.append({'mark': mark, 'office': r.get('tmOffice') or r.get('office'), 'classes': cls, 'status': status, 'live': live,
+                            rows.append({'mark': mark, 'office': r.get('tmOffice') or r.get('office'), 'classes': cls, 'protection': r.get('tProtection') or [], 'status': status, 'live': live,
                                          'applicant': ', '.join(r.get('applicantName') or r.get('applicantNames') or []),
                                          'filed': (r.get('applicationDate') or '')[:10], 'music': live and bool(set(cls) & set(classes)),
                                          'id': r.get('ST13') or r.get('applicationNumber'), 'url': r.get('tmOfficeURL') or ''})
                     if page >= (d.get('totalPages') or 1): break
                     time.sleep(1.5)
             self.tm[n] = rows
+
+    # France: the INPI's own trademark base (FR, EU and international marks valid in France), API with a free technical account
+    def inpi(self, user, password):
+        import http.cookiejar
+        jar = http.cookiejar.CookieJar()
+        op = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+        G = 'https://api-gateway.inpi.fr'
+        op.open(urllib.request.Request(f'{G}/services/uaa/api/authenticate', headers=UA), timeout=60).read()
+        tok = lambda k: next((c.value for c in jar if c.name == k), '')
+        hx = lambda: {**UA, 'Accept': 'application/json', 'Content-Type': 'application/json', 'X-XSRF-TOKEN': tok('XSRF-TOKEN'),
+                      'Cookie': f"XSRF-TOKEN={tok('XSRF-TOKEN')}; access_token={tok('access_token')}; session_token={tok('refresh_token')}"}
+        op.open(urllib.request.Request(f'{G}/auth/login', data=json.dumps({'username': user, 'password': password, 'rememberMe': True}).encode(),
+                                       headers=hx()), timeout=60).read()
+        self.fr = {}
+        for n in self.names:
+            plain = ''.join(c for c in unicodedata.normalize('NFKD', n) if not unicodedata.combining(c))
+            rows, seen = [], set()
+            for q in dict.fromkeys([plain, fold(n)]):
+                for pos in range(0, 500, 200):
+                    body = json.dumps({'collections': ['FR', 'EU', 'WO'], 'query': f'[NGram_Mark={q}]', 'position': pos, 'size': 200,
+                                       'fields': ['ApplicationNumber', 'Mark', 'ClassNumber', 'MarkCurrentStatusCode', 'DEPOSANT', 'ApplicationDate', 'ExpiryDate', 'ukey']}).encode()
+                    try: d = retry(lambda: json.load(op.open(urllib.request.Request(f'{G}/services/apidiffusion/api/marques/search', data=body, headers=hx()), timeout=90)))
+                    except Exception as e: self.unread[n].append(f'INPI “{q}”: {e}'); break
+                    res = d.get('results') or d.get('result') or []
+                    for r in res:
+                        f = {x.get('name'): x.get('value') for x in r.get('fields', [])} if r.get('fields') else r
+                        mark = f.get('Mark') or ''
+                        if fold(mark) != fold(n) or f.get('ukey') in seen: continue
+                        seen.add(f.get('ukey'))
+                        cls = [str(c) for c in (f.get('ClassNumber') if isinstance(f.get('ClassNumber'), list) else [f.get('ClassNumber')]) if c]
+                        expiry = str(f.get('ExpiryDate') or '')
+                        live = not expiry or expiry.replace('-', '')[:8] >= time.strftime('%Y%m%d')
+                        rows.append({'mark': mark, 'number': f.get('ApplicationNumber'), 'classes': cls, 'status': f.get('MarkCurrentStatusCode'),
+                                     'holder': f.get('DEPOSANT'), 'filed': f.get('ApplicationDate'), 'expiry': expiry, 'live': live,
+                                     'music': live and bool(set(cls) & {'9', '41'}), 'collection': r.get('collection') or f.get('collection')})
+                    if len(res) < 200: break
+                    time.sleep(1)
+            self.fr[n] = rows
 
     def report(self):
         L = [f'# Korhoname — {time.strftime("%Y-%m-%d %H:%M UTC", time.gmtime())}', '', f'Discogs route: {self.route}', '']
@@ -151,7 +189,10 @@ class Check:
             tm = getattr(self, 'tm', {}).get(n, [])
             # a conflict over a name turns on what the names share: the form without diacritics decides
             tm_music = [x for x in tm if x['music']]
-            verdict = 'TAKEN' if h or tm_music else ('FREE' if not self.unread[n] else 'NO MATCH FOUND, BUT PART UNREAD')
+            fr = getattr(self, 'fr', {}).get(n, [])
+            fr_music = [x for x in fr if x['music']]
+            tm_fr = [x for x in tm if x['office'] in ('FR', 'EM') or 'FR' in (x.get('protection') or [])]
+            verdict = 'TAKEN' if h or tm_music or fr_music else ('FREE' if not self.unread[n] else 'NO MATCH FOUND, BUT PART UNREAD')
             L.append(f'## {n} — {verdict}: {len(ex)} with the exact spelling, {len(h) - len(ex)} more once diacritics, ligatures and punctuation drop')
             if self.unread[n]: L.append(f'- unread: {", ".join(self.unread[n])}')
             for x in sorted(h, key=lambda x: (not x['exact'], x['source'])):
@@ -161,8 +202,15 @@ class Check:
                 L.append(f'- trademarks (TMview) on the shared form: {len(tm)}, {len(live)} in force, {len(tm_music)} in force in classes 9 or 41 (recordings, entertainment)')
                 for x in sorted(tm, key=lambda x: (not x['music'], not x['live'], x['office'] or '')):
                     L.append(f"  - {'MUSIC ' if x['music'] else ''}{x['mark']} — {x['office']} — classes {', '.join(x['classes'])} — {x['status']} — {x['applicant']} — filed {x['filed']} — {x['url'] or x['id']}")
+            if hasattr(self, 'tm'):
+                L.append(f"- valid in France through TMview (French marks, EU marks, international marks designating France): {len(tm_fr)}, "
+                         f"of which {len([x for x in tm_fr if x['music']])} in force in classes 9 or 41")
+            if hasattr(self, 'fr'):
+                L.append(f'- INPI base (FR, EU, WO): {len(fr)}, {len(fr_music)} in force in classes 9 or 41')
+                for x in sorted(fr, key=lambda x: not x['music']):
+                    L.append(f"  - {'MUSIC ' if x['music'] else ''}{x['mark']} — {x['collection']} {x['number']} — classes {', '.join(x['classes'])} — {x['status']} — {x['holder']} — filed {x['filed']} — expires {x['expiry']}")
             L.append('')
-            out[n] = {'verdict': verdict, 'hits': h, 'trademarks': tm, 'unread': self.unread[n]}
+            out[n] = {'verdict': verdict, 'hits': h, 'trademarks': tm, 'inpi': fr, 'unread': self.unread[n]}
         open('korhoname.md', 'w').write('\n'.join(L)); json.dump(out, open('korhoname.json', 'w'), ensure_ascii=False, indent=1)
         return '\n'.join(L)
 
@@ -176,5 +224,10 @@ if __name__ == '__main__':
         except Exception as e: print('Discogs dump out of reach:', e, file=sys.stderr)
     if not c.route: c.discogs_search()
     c.musicbrainz()
-    if '--no-trademarks' not in sys.argv: c.trademarks()
+    if '--no-trademarks' not in sys.argv:
+        c.trademarks()
+        import os
+        if os.environ.get('INPI_USER') and os.environ.get('INPI_PASSWORD'):
+            try: c.inpi(os.environ['INPI_USER'], os.environ['INPI_PASSWORD'])
+            except Exception as e: print('INPI out of reach:', e, file=sys.stderr)
     print(c.report())

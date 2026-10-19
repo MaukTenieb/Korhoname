@@ -31,7 +31,9 @@ The result prints to the screen and lands in `korhoname.md` and `korhoname.json`
 
 ## Trademarks
 
-Korhoname also queries TMview, the trademark search run by the European Union Intellectual Property Office over the EU offices, the French INPI, WIPO, the USPTO and some seventy others, without a key. It keeps the marks whose shared form equals the name's and flags those in force in Nice classes 9 (recordings) and 41 (entertainment); such a mark makes the name `TAKEN`. Ended, expired, withdrawn or refused marks are listed, not counted. `--no-trademarks` skips this step.
+Korhoname also queries TMview, the trademark search run by the European Union Intellectual Property Office over the EU offices, the French INPI, WIPO, the USPTO and some seventy others, without a key. It keeps the marks whose shared form equals the name's and flags those in force in Nice classes 9 (recordings) and 41 (entertainment); such a mark makes the name `TAKEN`. Ended, expired, withdrawn or refused marks are listed, not counted. The report singles out the marks valid in France: French marks, EU marks, and international marks designating France.
+
+For France, Korhoname also reads the INPI's own base (French, EU and international marks) through its official API, when `INPI_USER` and `INPI_PASSWORD` hold the login of a free INPI technical account (in GitHub Actions: repository secrets of the same names). `--no-trademarks` skips both steps.
 
 ## Method
 

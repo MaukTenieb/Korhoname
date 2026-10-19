@@ -18,4 +18,4 @@ jobs:
           git init -q -b result && git config user.name korhoname && git config user.email actions@users.noreply.github.com
           git add . && git commit -qm "Korhoname $(date -u +%FT%H%M)"
           git push -qf "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" HEAD:result
-        env: {NAMES: '${{ inputs.names }}'}
+        env: {NAMES: '${{ inputs.names }}', INPI_USER: '${{ secrets.INPI_USER }}', INPI_PASSWORD: '${{ secrets.INPI_PASSWORD }}'}
