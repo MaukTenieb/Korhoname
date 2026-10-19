@@ -27,6 +27,12 @@ def same(a, b):
     if fa or fb: return fa == fb
     return re.sub(r'\s+', '', exact(a)) == re.sub(r'\s+', '', exact(b)) and bool(exact(a))
 
+def same(a, b):
+    """Shared form; a name made only of signs (no letter, no digit) is compared sign for sign, spaces aside."""
+    fa, fb = fold(a), fold(b)
+    if fa or fb: return fa == fb
+    return bool(exact(a)) and re.sub(r'\s+', '', exact(a)) == re.sub(r'\s+', '', exact(b))
+
 def exact(s):
     """Lower case, diacritics kept, Discogs's '(2)' suffix dropped."""
     return unicodedata.normalize('NFC', re.sub(r'\s*\(\d+\)$', '', s or '')).casefold().strip()
