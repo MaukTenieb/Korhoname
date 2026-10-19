@@ -131,11 +131,14 @@ class Check:
                         key = (r.get('office'), r.get('applicationNumber') or r.get('ST13') or mark)
                         if key in seen: continue
                         seen.add(key)
-                        cls = [str(c) for c in (r.get('niceClasses') or [])]
+                        cls = [str(c) for c in (r.get('niceClass') or r.get('niceClasses') or [])]
                         if fold(mark) == fold(n):
-                            rows.append({'mark': mark, 'office': r.get('office'), 'classes': cls, 'status': r.get('tradeMarkStatus') or r.get('status'),
-                                         'applicant': r.get('applicantNames'), 'filed': (r.get('applicationDate') or '')[:10],
-                                         'music': bool(set(cls) & set(classes)), 'id': r.get('ST13') or r.get('applicationNumber')})
+                            status = r.get('tradeMarkStatus') or r.get('status') or ''
+                            live = not re.search(r'(?i)ended|expired|withdrawn|refused|cancel|lapsed|surrender', status)
+                            rows.append({'mark': mark, 'office': r.get('tmOffice') or r.get('office'), 'classes': cls, 'status': status, 'live': live,
+                                         'applicant': ', '.join(r.get('applicantName') or r.get('applicantNames') or []),
+                                         'filed': (r.get('applicationDate') or '')[:10], 'music': live and bool(set(cls) & set(classes)),
+                                         'id': r.get('ST13') or r.get('applicationNumber'), 'url': r.get('tmOfficeURL') or ''})
                     if page >= (d.get('totalPages') or 1): break
                     time.sleep(1.5)
             self.tm[n] = rows
@@ -154,9 +157,10 @@ class Check:
             for x in sorted(h, key=lambda x: (not x['exact'], x['source'])):
                 L.append(f"- {'EXACT ' if x['exact'] else ''}{x['source']} {x['type']}: {x['name']} {('(' + x['note'].strip() + ')') if x['note'].strip() else ''} {x['url']}")
             if hasattr(self, 'tm'):
-                L.append(f'- trademarks (TMview) on the shared form: {len(tm)}, of which {len(tm_music)} in classes 9 or 41 (recordings, entertainment)')
-                for x in sorted(tm, key=lambda x: not x['music']):
-                    L.append(f"  - {'MUSIC ' if x['music'] else ''}{x['mark']} — {x['office']} — classes {', '.join(x['classes'])} — {x['status']} — {x['applicant']} — {x['filed']} — {x['id']}")
+                live = [x for x in tm if x['live']]
+                L.append(f'- trademarks (TMview) on the shared form: {len(tm)}, {len(live)} in force, {len(tm_music)} in force in classes 9 or 41 (recordings, entertainment)')
+                for x in sorted(tm, key=lambda x: (not x['music'], not x['live'], x['office'] or '')):
+                    L.append(f"  - {'MUSIC ' if x['music'] else ''}{x['mark']} — {x['office']} — classes {', '.join(x['classes'])} — {x['status']} — {x['applicant']} — filed {x['filed']} — {x['url'] or x['id']}")
             L.append('')
             out[n] = {'verdict': verdict, 'hits': h, 'trademarks': tm, 'unread': self.unread[n]}
         open('korhoname.md', 'w').write('\n'.join(L)); json.dump(out, open('korhoname.json', 'w'), ensure_ascii=False, indent=1)
