@@ -29,6 +29,10 @@ The result prints to the screen and lands in `korhoname.md` and `korhoname.json`
 
 `--dump` tries the dump first and falls back to the site search when the dump stays out of reach.
 
+## Notable uses
+
+Korhoname searches Wikidata (items in nine languages, labels and aliases) and Wikipedia (English, French) for the same shared form: a film, a book, a group, a company or a place of that name makes the name `TAKEN`, since a search engine already ranks it. `--no-notable` skips this step.
+
 ## Trademarks
 
 Korhoname also queries TMview, the trademark search run by the European Union Intellectual Property Office over the EU offices, the French INPI, WIPO, the USPTO and some seventy others, without a key. It keeps the marks whose shared form equals the name's and flags those in force in Nice classes 9 (recordings) and 41 (entertainment); such a mark makes the name `TAKEN`. Ended, expired, withdrawn or refused marks are listed, not counted. The report singles out the marks valid in France: French marks, EU marks, and international marks designating France.

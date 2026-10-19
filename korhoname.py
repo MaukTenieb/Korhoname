@@ -119,6 +119,34 @@ class Check:
                                      a.get('disambiguation', '') + ('' if nm == a['name'] else f' as “{nm}”')); break
                 time.sleep(1.2)
 
+    # Notable uses: Wikidata items (films, works, groups, companies, places…) and Wikipedia titles, in several languages
+    def notable(self, langs=('en', 'fr', 'de', 'es', 'it', 'hi', 'ur', 'fa', 'ja')):
+        self.web = {}
+        for n in self.names:
+            plain = ''.join(c for c in unicodedata.normalize('NFKD', n) if not unicodedata.combining(c))
+            rows, seen = [], set()
+            for q in dict.fromkeys([n, plain, fold(n)]):
+                for lang in langs:
+                    u = ('https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&limit=50&type=item'
+                         f'&language={lang}&uselang=en&search={urllib.parse.quote(q)}')
+                    try: d = retry(lambda: json.load(get(u, 60)), tries=3)
+                    except Exception: self.unread[n].append(f'Wikidata “{q}” ({lang})'); continue
+                    for it in d.get('search', []):
+                        labels = [it.get('label', '')] + [it.get('match', {}).get('text', '')] + list(it.get('aliases') or [])
+                        if it['id'] in seen or not any(same(x, n) for x in labels if x): continue
+                        seen.add(it['id'])
+                        rows.append({'id': it['id'], 'label': it.get('label', ''), 'description': it.get('description', ''),
+                                     'url': f"https://www.wikidata.org/wiki/{it['id']}"})
+                    time.sleep(0.3)
+            for lang in ('en', 'fr'):
+                u = f'https://{lang}.wikipedia.org/w/api.php?action=opensearch&format=json&limit=20&search={urllib.parse.quote(plain)}'
+                try: d = retry(lambda: json.load(get(u, 60)), tries=3)
+                except Exception: self.unread[n].append(f'Wikipedia {lang}'); continue
+                for title, url in zip(d[1], d[3]):
+                    if same(re.sub(r'\s*\(.*\)$', '', title), n) and url not in seen:
+                        seen.add(url); rows.append({'id': '', 'label': title, 'description': f'Wikipedia ({lang})', 'url': url})
+            self.web[n] = rows
+
     # Trademarks: TMview (EUIPO's portal over the EU offices, INPI, WIPO, USPTO and 70-odd others), no key
     def trademarks(self, classes=('9', '41')):
         BUA = {'User-Agent': 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36',
@@ -204,7 +232,8 @@ class Check:
             fr = getattr(self, 'fr', {}).get(n, [])
             fr_music = [x for x in fr if x['music']]
             tm_fr = [x for x in tm if x['office'] in ('FR', 'EM') or 'FR' in (x.get('protection') or [])]
-            verdict = 'TAKEN' if h or tm_music or fr_music else ('FREE' if not self.unread[n] else 'NO MATCH FOUND, BUT PART UNREAD')
+            web = getattr(self, 'web', {}).get(n, [])
+            verdict = 'TAKEN' if h or tm_music or fr_music or web else ('FREE' if not self.unread[n] else 'NO MATCH FOUND, BUT PART UNREAD')
             L.append(f'## {n} — {verdict}: {len(ex)} with the exact spelling, {len(h) - len(ex)} more once diacritics, ligatures and punctuation drop')
             if self.unread[n]: L.append(f'- unread: {", ".join(self.unread[n])}')
             for x in sorted(h, key=lambda x: (not x['exact'], x['source'])):
@@ -222,7 +251,7 @@ class Check:
                 for x in sorted(fr, key=lambda x: not x['music']):
                     L.append(f"  - {'MUSIC ' if x['music'] else ''}{x['mark']} — {x['collection']} {x['number']} — classes {', '.join(x['classes'])} — {x['status']} — {x['holder']} — filed {x['filed']} — expires {x['expiry']}")
             L.append('')
-            out[n] = {'verdict': verdict, 'hits': h, 'trademarks': tm, 'inpi': fr, 'unread': self.unread[n]}
+            out[n] = {'verdict': verdict, 'hits': h, 'notable': web, 'trademarks': tm, 'inpi': fr, 'unread': self.unread[n]}
         open('korhoname.md', 'w').write('\n'.join(L)); json.dump(out, open('korhoname.json', 'w'), ensure_ascii=False, indent=1)
         return '\n'.join(L)
 
@@ -236,6 +265,7 @@ if __name__ == '__main__':
         except Exception as e: print('Discogs dump out of reach:', e, file=sys.stderr)
     if not c.route: c.discogs_search()
     c.musicbrainz()
+    if '--no-notable' not in sys.argv: c.notable()
     if '--no-trademarks' not in sys.argv:
         c.trademarks()
         import os
