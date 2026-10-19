@@ -17,7 +17,10 @@ UA = {'User-Agent': 'Mozilla/5.0 (compatible; Korhoname/1.0; +https://github.com
 def fold(s):
     """Lower case, no diacritics, ligatures opened, Discogs's '(2)' suffix dropped, punctuation and spaces dropped."""
     s = re.sub(r'\s*\(\d+\)$', '', s or '')
-    s = unicodedata.normalize('NFKD', s.casefold().replace('æ', 'ae').replace('œ', 'oe'))
+    s = s.casefold()
+    for a, b in (('æ', 'ae'), ('œ', 'oe'), ('θ', 'th'), ('þ', 'th'), ('ð', 'dh'), ('ß', 'ss'), ('ø', 'o'), ('đ', 'd'), ('ł', 'l'), ('ı', 'i')):
+        s = s.replace(a, b)                                          # letters read as Latin letters by a European public
+    s = unicodedata.normalize('NFKD', s)
     s = ''.join(c for c in s if not unicodedata.combining(c))
     return re.sub(r'[\W_]+', '', s)
 
@@ -120,12 +123,12 @@ class Check:
                 time.sleep(1.2)
 
     # Notable uses: Wikidata items (films, works, groups, companies, places…) and Wikipedia titles, in several languages
-    def notable(self, langs=('en', 'fr', 'de', 'es', 'it', 'hi', 'ur', 'fa', 'ja')):
+    def notable(self, langs=('en', 'fr', 'hi', 'fa', 'ja')):
         self.web = {}
         for n in self.names:
             plain = ''.join(c for c in unicodedata.normalize('NFKD', n) if not unicodedata.combining(c))
             rows, seen = [], set()
-            for q in dict.fromkeys([n, plain, fold(n)]):
+            for q in dict.fromkeys([plain, fold(n)]):
                 for lang in langs:
                     u = ('https://www.wikidata.org/w/api.php?action=wbsearchentities&format=json&limit=50&type=item'
                          f'&language={lang}&uselang=en&search={urllib.parse.quote(q)}')

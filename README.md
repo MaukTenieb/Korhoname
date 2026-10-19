@@ -31,7 +31,7 @@ The result prints to the screen and lands in `korhoname.md` and `korhoname.json`
 
 ## Notable uses
 
-Korhoname searches Wikidata (items in nine languages, labels and aliases) and Wikipedia (English, French) for the same shared form: a film, a book, a group, a company or a place of that name makes the name `TAKEN`, since a search engine already ranks it. `--no-notable` skips this step.
+Korhoname searches Wikidata (items through English, French, Hindi, Persian and Japanese labels and aliases) and Wikipedia (English, French) for the same shared form: a film, a book, a group, a company or a place of that name makes the name `TAKEN`, since a search engine already ranks it. `--no-notable` skips this step.
 
 ## Trademarks
 
@@ -41,7 +41,7 @@ For France, Korhoname also reads the INPI's own base (French, EU and internation
 
 ## Method
 
-- The verdict rests on the shared form: diacritics, ligatures and punctuation drop, and so does Discogs's `(2)` suffix. A dispute over a name turns on what the names share: `Ā-î-Ā` is read as `AIA`, `Ā-Ā` as `AA`.
+- The verdict rests on the shared form: diacritics, ligatures and punctuation drop, letters a European reader transliterates are transliterated (`θ` as `th`: `Miθra` is `Mithra`), and so does Discogs's `(2)` suffix. A dispute over a name turns on what the names share: `Ā-î-Ā` is read as `AIA`, `Ā-Ā` as `AA`.
 - Discogs is searched three times per name and per type: the name as written, without diacritics, and without punctuation (`Ā-Ā`, `A-A`, `AA`), since its search engine matches each form differently.
 - The reader proxy is rate-limited: requests are paced, then retried up to eight times with a growing wait. A page that stays unreadable is kept as `unread-….txt` and named in the report; the verdict then says `PART UNREAD` instead of `FREE`.
 - MusicBrainz is searched on names and aliases, with five tries.
