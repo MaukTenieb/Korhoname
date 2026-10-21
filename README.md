@@ -39,6 +39,9 @@ Korhoname also queries TMview, the trademark search run by the European Union In
 
 For France, Korhoname also reads the INPI's own base (French, EU and international marks) through its official API, when `INPI_USER` and `INPI_PASSWORD` hold the login of a free INPI technical account (in GitHub Actions: repository secrets of the same names). `--no-trademarks` skips both steps.
 
+
+From GitHub without the form: write the names in `queue.txt`, one per line, and commit it on `main`; the check starts by itself and its result lands on the branch `result`.
+
 ## Method
 
 - The verdict rests on the shared form: diacritics, ligatures and punctuation drop, letters a European reader transliterates are transliterated (`θ` as `th`: `Miθra` is `Mithra`), and so does Discogs's `(2)` suffix. A dispute over a name turns on what the names share: `Ā-î-Ā` is read as `AIA`, `Ā-Ā` as `AA`.
