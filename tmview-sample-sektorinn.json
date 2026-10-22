@@ -1,0 +1,80 @@
+[
+ {
+  "ST13": "TR502013000070423",
+  "markImageURI": "https://www.tmdn.org/tmview/api/trademark/thumbnail/TR502013000070423",
+  "detailImageURI": "https://www.tmdn.org/tmview/api/trademark/image/TR502013000070423",
+  "tmName": "sektora innovative information center şekil",
+  "tmOffice": "TR",
+  "tmOfficeURL": "https://online.turkpatent.gov.tr/CES/tmview/trademark/data/TR502013000070423",
+  "tProtection": [
+   "TR"
+  ],
+  "applicationNumber": "2013-70423",
+  "tradeMarkStatus": "Ended",
+  "niceClass": [
+   35,
+   41
+  ],
+  "applicantName": [
+   "SERKAN USTA"
+  ],
+  "applicationDate": "2013-08-20T12:00:00.000Z",
+  "tradeMarkType": "Word",
+  "viennaCodes": [
+   "05.01.01"
+  ],
+  "oppositionPeriodStart": "2013-12-12T12:00:00.000Z",
+  "oppositionPeriodEnd": "2014-03-12T12:00:00.000Z",
+  "oppositionDeadLine": "2014-03-12T12:00:00.000Z"
+ },
+ {
+  "ST13": "DE503020242148446",
+  "tmName": "Das Spinnen-Netz ArbeitMitWirkung ist ein Stellenportal und Netzwerk im Non-Profit-Sektor. Es unterstützt Arbeitssuchende bei der beruflichen Orientierung und Weiterentwicklung und Arbeitgebende dabei, passendes Personal zu finden.",
+  "tmOffice": "DE",
+  "tmOfficeURL": "http://tmview.dpma.de/trademark/data/DE503020242148446",
+  "tProtection": [
+   "DE"
+  ],
+  "applicationNumber": "3020242148446",
+  "tradeMarkStatus": "Ended",
+  "niceClass": [
+   42,
+   45
+  ],
+  "applicantName": [
+   ""
+  ],
+  "applicationDate": "2024-04-15T12:00:00.000Z",
+  "tradeMarkType": "Word",
+  "seniorityClaimed": false
+ },
+ {
+  "ST13": "TR502025000132288",
+  "markImageURI": "https://www.tmdn.org/tmview/api/trademark/thumbnail/TR502025000132288",
+  "detailImageURI": "https://www.tmdn.org/tmview/api/trademark/image/TR502025000132288",
+  "tmName": "go2innovate akademi ve sektörün buluşma noktası",
+  "tmOffice": "TR",
+  "tmOfficeURL": "https://online.turkpatent.gov.tr/CES/tmview/trademark/data/TR502025000132288",
+  "tProtection": [
+   "TR"
+  ],
+  "applicationNumber": "2025-132288",
+  "tradeMarkStatus": "Filed",
+  "niceClass": [
+   9,
+   10,
+   12,
+   35,
+   41,
+   42
+  ],
+  "applicantName": [
+   "GO2INNOVATE BİLGİ TEKNOLOJİLERİ LİMİTED ŞİRKETİ"
+  ],
+  "applicationDate": "2025-10-12T12:00:00.000Z",
+  "tradeMarkType": "Combined",
+  "oppositionPeriodStart": "2026-01-12T12:00:00.000Z",
+  "oppositionPeriodEnd": "2026-04-12T12:00:00.000Z",
+  "oppositionDeadLine": "2026-04-12T12:00:00.000Z"
+ }
+]
