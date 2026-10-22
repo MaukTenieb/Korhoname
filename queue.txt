@@ -1,14 +1,7 @@
-# Names checked by the push trigger, one per line.
-Insert Koin
-Koin
-Koins
+BioTenieb
 Kinos
 Noir Insekt
 Intersektion
 Inn Eskort
-Korong
-FaunInvaders
-Katabatik
 Hall of Kave
 BioGraphik
-Korhogo Fauna
